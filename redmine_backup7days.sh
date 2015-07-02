@@ -12,14 +12,19 @@ BACKUPLOG='/var/log/backupmysql.log'
 scp="/usr/bin/scp"
 scpkey="/root/exbackupkey"
 
-BACKUPSERVER='scpbackup'
-BACKUPUSER='dbabackup'
-BACKUPSERVERDIR='mysql'
+BACKUPSERVER='server.name'
+BACKUPUSER='exbackup'
+BACKUPSERVERDIR='directory'
 
-DBABACKUPEMAIL='dba@server.lan'
+DBABACKUPEMAIL='email'
 
 md5sumsex=""
 md5sumsloc=""
+
+export SRCDIR="/var/files"
+export remotehost=${BACKUPUSER}@${BACKUPSERVER}
+export DESTDIR="/home/ftpbackup/"
+export THREADS="10"
 
 date >> ${BACKUPLOG}
 
@@ -55,7 +60,7 @@ fi
 
 echo "Backup file ${BACKUPDIRTO}/${BACKUPFILE} absent" >>${BACKUPLOG} 2>&1
 echo "Creating backup file ${BACKUPDIRTO}/${BACKUPFILE}"  >>${BACKUPLOG} 2>&1
-/usr/bin/mysqldump --all-databases -u ${MYSQLUSER} -p ${MYSQLPASS} | gzip > ${BACKUPDIRTO}/${BACKUPFILE} >>${BACKUPLOG} 2>&1
+/usr/bin/mysqldump --all-databases -u ${MYSQLUSER} --password=${MYSQLPASS} | gzip > ${BACKUPDIRTO}/${BACKUPFILE} >>${BACKUPLOG} 2>&1
 echo "done" >>${BACKUPLOG} 2>&1
 
 cd ${BACKUPDIRTO}
@@ -84,11 +89,16 @@ md5sumsex=`ssh -i ${scpkey} ${BACKUPUSER}@${BACKUPSERVER} "md5sum ${BACKUPSERVER
 md5sumsloc=`md5sum ${BACKUPFILE} | awk '{print $1}'`
 
 if [ ${md5sumsex} = ${md5sumsloc} ]; then
-   echo "CheckSum Backup ${BACKUPFILE} ...... ok" >>${BACKUPLOG} 2>&1
+   echo "CheckSum Redmine Mysql Backup ${BACKUPFILE} ...... ok" >>${BACKUPLOG} 2>&1
 else
-   echo "CheckSum Backup ${BACKUPFILE} ...... false" >>${BACKUPLOG} 2>&1
-   echo "CheckSum Backup ${BACKUPFILE} ...... false" | mail -s "MySQL Backup Fail" ${DBABACKUPEMAIL}
+   echo "CheckSum Redmine Mysql Backup ${BACKUPFILE} ...... false" >>${BACKUPLOG} 2>&1
+   echo "CheckSum Redmine Mysql Backup ${BACKUPFILE} ...... false" | mail -s "Redmine Mysql Backup Fail" ${DBABACKUPEMAIL}
 fi
+
+#rsync
+/usr/bin/rsync -zr -f"+ */" -f"- *" -e 'ssh -c arcfour' $SRCDIR/ $remotehost:/$DESTDIR/
+cd $SRCDIR; find . ! -type d -print0 | xargs -0 -n1 -P$THREADS -I% rsync -a % $remotehost:/$DESTDIR/%
+
 
 rm ${BACKUPDIRTO}/${BACKUPFILE} >> ${BACKUPLOG} 2>&1
 
